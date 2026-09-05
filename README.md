@@ -28,6 +28,18 @@
 
 ---
 
+## 自用版安装包（`custom` 分支）
+
+此分支是在 Floral Notepaper 1.2.0 基础上的个人定制版本，增加了主界面快捷键缩放，以及按笔记保存的“始终置顶”选项。
+
+- 适用系统：Windows x64
+- [下载自用版安装程序](https://github.com/Mashiro83/floral-notepaper/releases/download/custom-1.2.0-1/floral-notepaper-custom_1.2.0_x64-setup.exe)
+- [查看发布说明与后续版本](https://github.com/Mashiro83/floral-notepaper/releases)
+- SHA-256：`E62D3B0D9B9C0644988ED5BC683CFDAAF49530E0072509D50BA7E930DAD48CCD`
+
+> [!NOTE]
+> 此安装包使用独立的 Windows 应用标识，可与官方版本分别安装。安装包未进行数字签名，Windows SmartScreen 可能显示提醒；确认下载来源为本仓库后再继续安装。建议关闭应用内自动更新检查，后续更新请从本仓库的 Releases 页面获取。
+
 ## 为什么选择花笺
 
 市面上现有的笔记或便签软件，要么功能繁重、上手门槛高，要么界面陈旧、久未更新。花笺因此而生，其特点是轻便、随呼随用，同时提供现代化的界面与舒适的编辑体验。
