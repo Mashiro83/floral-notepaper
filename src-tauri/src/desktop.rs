@@ -1440,6 +1440,10 @@ fn open_notepad_window_now(
     let locale = configured_locale();
     let label = notepad_window_label(note_id);
     let specs = saved_surface_specs(app);
+    let always_on_top = note_id
+        .map(|id| default_store()?.surface_always_on_top(id))
+        .transpose()?
+        .unwrap_or(true);
     let url = match note_id {
         Some(id) => format!("index.html?view=notepad&noteId={id}"),
         None => "index.html?view=notepad".to_string(),
@@ -1453,7 +1457,7 @@ fn open_notepad_window_now(
             title: locales::notepad_window_title(locale).to_string(),
             specs,
             decorations: false,
-            always_on_top: true,
+            always_on_top,
             shadow: false,
             skip_taskbar: true,
             bounds,
@@ -1505,6 +1509,7 @@ fn activate_pooled_notepad(app: &AppHandle, bounds: Option<WindowBounds>) -> Opt
     let _ = window.set_title(locales::notepad_window_title(locale));
     let _ = window.set_size(tauri::LogicalSize::new(specs.width, specs.height));
     let _ = apply_window_bounds(&window, bounds);
+    let _ = window.set_always_on_top(true);
     let _ = window.show();
     let _ = window.set_focus();
     let _ = window.emit("notepad:activate", label.clone());
@@ -1778,6 +1783,7 @@ fn open_tile_window_now(
     let url = format!("index.html?view=tile&noteId={note_id}");
 
     let specs = saved_surface_specs(app);
+    let always_on_top = default_store()?.surface_always_on_top(note_id)?;
 
     open_or_focus_window(
         app,
@@ -1787,7 +1793,7 @@ fn open_tile_window_now(
             title: locales::tile_window_title(locale).to_string(),
             specs,
             decorations: false,
-            always_on_top: true,
+            always_on_top,
             shadow: false,
             skip_taskbar: true,
             bounds,
@@ -2811,5 +2817,8 @@ mod tests {
         assert!(permissions
             .iter()
             .any(|permission| permission.as_str() == Some("core:window:allow-set-focus")));
+        assert!(permissions.iter().any(|permission| {
+            permission.as_str() == Some("core:webview:allow-set-webview-zoom")
+        }));
     }
 }

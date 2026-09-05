@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { createNote, getErrorMessage, getNote, listNotes, updateNote } from "../features/notes/api";
+import {
+  createNote,
+  getErrorMessage,
+  getNote,
+  listNotes,
+  setSurfaceAlwaysOnTop,
+  updateNote,
+} from "../features/notes/api";
 import { useImagePaste } from "../features/images/useImagePaste";
 import { useImageBaseDir } from "../features/images/useImageBaseDir";
 import { reportInstallPreparation } from "../features/update/api";
@@ -119,6 +126,26 @@ function SurfaceResizeHandles() {
   );
 }
 
+function AlwaysOnTopIcon({ enabled }: { enabled: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1 1 1 0 0 1 1 1z" />
+      {!enabled && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
 export function NotePad({
   initialNoteId,
   initialSurfaceMode = "pad",
@@ -140,6 +167,7 @@ export function NotePad({
   const [tileRenderMarkdown, setTileRenderMarkdown] = useState(false);
   const [tileDoubleClickToEdit, setTileDoubleClickToEdit] = useState(false);
   const [tileSaveReturnsToPin, setTileSaveReturnsToPin] = useState(false);
+  const [surfaceAlwaysOnTop, setSurfaceAlwaysOnTopState] = useState(true);
   const [tileColor, setTileColor] = useState(() =>
     resolveTileColor("system", normalizeTileColor(initialTileColor)),
   );
@@ -198,6 +226,7 @@ export function NotePad({
     setEditingNoteId(note.id);
     setTitle(note.title);
     setContent(note.content);
+    setSurfaceAlwaysOnTopState(note.surfaceAlwaysOnTop ?? true);
     setMode("new");
     setStatus("opened");
   }, []);
@@ -323,6 +352,8 @@ export function NotePad({
       setStatus("empty");
       setIsExiting(false);
       setSurfaceMode("pad");
+      setSurfaceAlwaysOnTopState(true);
+      void setCurrentWindowAlwaysOnTop(true).catch(() => undefined);
       void refreshNotes().catch(() => undefined);
       void showCurrentWindow()
         .then(() => contentRef.current?.focus())
@@ -336,9 +367,12 @@ export function NotePad({
   const saveNote = useCallback(async () => {
     const existingCategory = notes.find((n) => n.id === editingNoteId)?.category ?? "";
     const request = { title, content, category: existingCategory };
-    const note = editingNoteId
-      ? await updateNote(editingNoteId, request)
-      : await createNote(request);
+    let note = editingNoteId ? await updateNote(editingNoteId, request) : await createNote(request);
+
+    if ((note.surfaceAlwaysOnTop ?? true) !== surfaceAlwaysOnTop) {
+      await setSurfaceAlwaysOnTop(note.id, surfaceAlwaysOnTop);
+      note = { ...note, surfaceAlwaysOnTop };
+    }
 
     setEditingNoteId(note.id);
     setNotes((current) => {
@@ -352,7 +386,7 @@ export function NotePad({
     const contentChanged = contentValueRef.current !== content || titleValueRef.current !== title;
     setStatus(contentChanged ? "dirty" : "saved");
     return note;
-  }, [content, editingNoteId, notes, title]);
+  }, [content, editingNoteId, notes, surfaceAlwaysOnTop, title]);
 
   // 通过 ref 持有最新的 saveNote，让下方的 Tauri 监听只注册一次，
   // 避免每次输入（content 变化）都注销再重注册事件监听
@@ -431,7 +465,7 @@ export function NotePad({
   const tileNoteId = editingNoteId ?? initialNoteId ?? "";
 
   const switchSurfaceMode = useCallback(
-    async (nextMode: NoteSurfaceMode) => {
+    async (nextMode: NoteSurfaceMode, alwaysOnTop = surfaceAlwaysOnTop) => {
       const unpinnedNoteId = tileSurfaceModeUnpinNoteId(surfaceMode, nextMode, tileNoteId);
       setSurfaceMode(nextMode);
       if (unpinnedNoteId) {
@@ -442,16 +476,14 @@ export function NotePad({
         const currentBounds = await getCurrentWindowBounds();
         const targetBounds = getSurfaceTargetBounds(nextMode, currentBounds);
 
-        if (nextMode === "tile") {
-          await setCurrentWindowAlwaysOnTop(true);
-        }
+        await setCurrentWindowAlwaysOnTop(alwaysOnTop);
 
         await animateCurrentWindowBounds(targetBounds);
       } catch (error) {
         showToast(getErrorMessage(error));
       }
     },
-    [surfaceMode, tileNoteId],
+    [surfaceAlwaysOnTop, surfaceMode, tileNoteId],
   );
 
   useEffect(() => {
@@ -468,9 +500,8 @@ export function NotePad({
   }, [switchSurfaceMode]);
 
   useEffect(() => {
-    if (surfaceMode !== "tile") return;
-    void setCurrentWindowAlwaysOnTop(true).catch(() => undefined);
-  }, [surfaceMode]);
+    void setCurrentWindowAlwaysOnTop(surfaceAlwaysOnTop).catch(() => undefined);
+  }, [surfaceAlwaysOnTop]);
 
   const handleSave = useCallback(
     async ({ isAutoSave = false }: { isAutoSave?: boolean } = {}) => {
@@ -575,7 +606,7 @@ export function NotePad({
     try {
       const note = await getNote(noteId);
       applyNote(note);
-      await switchSurfaceMode("pad");
+      await switchSurfaceMode("pad", note.surfaceAlwaysOnTop ?? true);
     } catch (error) {
       showToast(getErrorMessage(error));
     }
@@ -591,6 +622,25 @@ export function NotePad({
       showToast(getErrorMessage(error));
     }
   };
+
+  const handleToggleAlwaysOnTop = useCallback(async () => {
+    const nextValue = !surfaceAlwaysOnTop;
+    try {
+      if (editingNoteId) {
+        await setSurfaceAlwaysOnTop(editingNoteId, nextValue);
+        setNotes((current) =>
+          current.map((note) =>
+            note.id === editingNoteId ? { ...note, surfaceAlwaysOnTop: nextValue } : note,
+          ),
+        );
+      } else {
+        await setCurrentWindowAlwaysOnTop(nextValue);
+      }
+      setSurfaceAlwaysOnTopState(nextValue);
+    } catch (error) {
+      showToast(getErrorMessage(error));
+    }
+  }, [editingNoteId, surfaceAlwaysOnTop]);
 
   const handleClose = useCallback(() => {
     setIsExiting(true);
@@ -707,10 +757,14 @@ export function NotePad({
     setContent("");
     setMode("new");
     setStatus("empty");
+    setSurfaceAlwaysOnTopState(true);
   };
 
   const isTile = surfaceMode === "tile";
   const tileTitle = title.trim();
+  const alwaysOnTopTitle = surfaceAlwaysOnTop
+    ? t("notepad.tooltip.allowWindowCover", { defaultValue: "允许其他窗口覆盖" })
+    : t("notepad.tooltip.keepOnTop", { defaultValue: "保持在所有窗口上方" });
   const enterClass = hasEnteredOnce.current ? "" : "animate-window-enter";
   const surfaceWrapperClassName = `w-full h-screen flex flex-col bg-transparent p-0 ${isExiting ? "animate-window-exit" : enterClass}`;
   const padSurfaceClassName =
@@ -734,6 +788,21 @@ export function NotePad({
           onMouseDown={handleDrag}
           onDoubleClick={handleTileDoubleClick}
         >
+          <button
+            type="button"
+            aria-label={alwaysOnTopTitle}
+            aria-pressed={surfaceAlwaysOnTop}
+            title={alwaysOnTopTitle}
+            onMouseDown={(event) => event.stopPropagation()}
+            onClick={() => void handleToggleAlwaysOnTop()}
+            className={`absolute top-2 right-9 z-10 w-6 h-6 flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+              surfaceAlwaysOnTop
+                ? "text-bamboo bg-bamboo-mist/70 hover:bg-bamboo-mist"
+                : "text-ink-ghost/70 hover:text-ink-faint hover:bg-paper-warm/80"
+            }`}
+          >
+            <AlwaysOnTopIcon enabled={surfaceAlwaysOnTop} />
+          </button>
           <button
             type="button"
             aria-label="取消钉屏"
@@ -793,6 +862,21 @@ export function NotePad({
               </div>
 
               <div className="ml-auto flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label={alwaysOnTopTitle}
+                  aria-pressed={surfaceAlwaysOnTop}
+                  onClick={() => void handleToggleAlwaysOnTop()}
+                  className={`group w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 cursor-pointer ${
+                    surfaceAlwaysOnTop
+                      ? "text-bamboo bg-bamboo-mist/70 hover:bg-bamboo-mist"
+                      : "text-ink-ghost hover:text-ink-faint hover:bg-paper-warm"
+                  }`}
+                  title={alwaysOnTopTitle}
+                >
+                  <AlwaysOnTopIcon enabled={surfaceAlwaysOnTop} />
+                </button>
+
                 <button
                   onClick={() => void handlePin()}
                   className="group w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 cursor-pointer text-ink-ghost hover:text-ink-faint hover:bg-paper-warm"

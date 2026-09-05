@@ -40,6 +40,19 @@ fn notes_update(app: AppHandle, id: String, request: SaveNoteRequest) -> Result<
 }
 
 #[tauri::command]
+fn notes_set_surface_always_on_top(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    id: String,
+    enabled: bool,
+) -> Result<NoteMetadata, AppError> {
+    window.set_always_on_top(enabled)?;
+    let note = default_store()?.set_surface_always_on_top(&id, enabled)?;
+    let _ = app.emit("notes-changed", ());
+    Ok(note)
+}
+
+#[tauri::command]
 fn notes_delete(app: AppHandle, id: String) -> Result<(), AppError> {
     default_store()?.delete_note(&id)?;
     let _ = app.emit("notes-changed", ());
@@ -473,6 +486,7 @@ pub fn run() {
             notes_get,
             notes_create,
             notes_update,
+            notes_set_surface_always_on_top,
             notes_delete,
             notes_import_markdown,
             notes_export_markdown,

@@ -7,6 +7,7 @@ export interface NoteMetadata {
   updatedAt: string;
   wordCount: number;
   preview: string;
+  surfaceAlwaysOnTop?: boolean;
 }
 
 export interface Note extends Omit<NoteMetadata, "preview"> {

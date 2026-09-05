@@ -12,6 +12,8 @@ import type { AppConfig, ThemeOption } from "./features/settings/types";
 import { getInitialRoute } from "./features/windows/windowRoutes";
 import { syncLanguage } from "./locales";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { nextPageZoom } from "./features/windows/pageZoom";
 
 function App() {
   const route = getInitialRoute();
@@ -33,6 +35,26 @@ function App() {
       .catch(() => {});
     return () => cleanup();
   }, []);
+
+  useEffect(() => {
+    if (activeView !== "main") return;
+
+    let zoomLevel = 1;
+    const webview = getCurrentWebview();
+    const handleZoomShortcut = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+
+      const nextZoomLevel = nextPageZoom(zoomLevel, event.key, event.code);
+      if (nextZoomLevel == null) return;
+
+      event.preventDefault();
+      zoomLevel = nextZoomLevel;
+      void webview.setZoom(zoomLevel).catch(() => undefined);
+    };
+
+    window.addEventListener("keydown", handleZoomShortcut, true);
+    return () => window.removeEventListener("keydown", handleZoomShortcut, true);
+  }, [activeView]);
 
   useEffect(() => {
     let themeCleanup = () => {};

@@ -39,6 +39,10 @@ export function updateNote(id: string, request: SaveNoteRequest): Promise<Note> 
   return invoke("notes_update", { id, request });
 }
 
+export function setSurfaceAlwaysOnTop(id: string, enabled: boolean): Promise<NoteMetadata> {
+  return invoke("notes_set_surface_always_on_top", { id, enabled });
+}
+
 export function deleteNote(id: string): Promise<void> {
   return invoke("notes_delete", { id });
 }

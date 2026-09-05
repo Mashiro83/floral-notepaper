@@ -116,6 +116,8 @@ pub struct NoteMetadata {
     pub updated_at: DateTime<Utc>,
     pub word_count: usize,
     pub preview: String,
+    #[serde(default = "default_surface_always_on_top")]
+    pub surface_always_on_top: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -130,6 +132,8 @@ pub struct Note {
     pub updated_at: DateTime<Utc>,
     pub word_count: usize,
     pub content: String,
+    #[serde(default = "default_surface_always_on_top")]
+    pub surface_always_on_top: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -762,6 +766,7 @@ impl NoteStore {
             updated_at: metadata.updated_at,
             word_count: metadata.word_count,
             content,
+            surface_always_on_top: metadata.surface_always_on_top,
         })
     }
 
@@ -785,6 +790,7 @@ impl NoteStore {
             updated_at: now,
             word_count,
             preview: preview(&request.content),
+            surface_always_on_top: true,
         };
 
         fs::write(&note_path, &request.content)?;
@@ -801,6 +807,7 @@ impl NoteStore {
             updated_at: now,
             word_count,
             content: request.content,
+            surface_always_on_top: metadata.surface_always_on_top,
         })
     }
 
@@ -845,6 +852,7 @@ impl NoteStore {
             updated_at: note.updated_at,
             word_count: note.word_count,
             content: request.content,
+            surface_always_on_top: note.surface_always_on_top,
         };
 
         self.save_metadata(&metadata_file)?;
@@ -859,6 +867,31 @@ impl NoteStore {
                 let _ = recycle_path(&old_path);
             }
         }
+        Ok(result)
+    }
+
+    pub fn surface_always_on_top(&self, id: &str) -> Result<bool, AppError> {
+        self.ensure_storage()?;
+        Ok(self.find_metadata(id)?.surface_always_on_top)
+    }
+
+    pub fn set_surface_always_on_top(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<NoteMetadata, AppError> {
+        self.ensure_storage()?;
+        let mut metadata_file = self.load_metadata()?;
+        let result = {
+            let note = metadata_file
+                .notes
+                .iter_mut()
+                .find(|note| note.id == id)
+                .ok_or_else(|| AppError::note_not_found(id))?;
+            note.surface_always_on_top = enabled;
+            note.clone()
+        };
+        self.save_metadata(&metadata_file)?;
         Ok(result)
     }
 
@@ -1436,6 +1469,7 @@ impl NoteStore {
                 updated_at: modified,
                 word_count: count_words(&content),
                 preview: preview(&content),
+                surface_always_on_top: true,
             });
         }
         Ok(())
@@ -1736,6 +1770,10 @@ fn default_tile_ctrl_close() -> bool {
     true
 }
 
+fn default_surface_always_on_top() -> bool {
+    true
+}
+
 fn default_split_scroll_sync() -> bool {
     true
 }
@@ -1801,6 +1839,14 @@ mod tests {
         let loaded = store.read_note(&created.id).expect("read note");
         assert_eq!(loaded, created);
 
+        let updated_preference = store
+            .set_surface_always_on_top(&created.id, false)
+            .expect("update always-on-top preference");
+        assert!(!updated_preference.surface_always_on_top);
+        assert!(!store
+            .surface_always_on_top(&created.id)
+            .expect("read always-on-top preference"));
+
         let listed = store.list_notes().expect("list notes");
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].id, created.id);
@@ -1820,6 +1866,7 @@ mod tests {
         assert_eq!(updated.title, "");
         assert_eq!(updated.content, "# 新标题\nsecond line");
         assert_ne!(updated.file_name, created.file_name);
+        assert!(!updated.surface_always_on_top);
 
         store.delete_note(&created.id).expect("delete note");
         assert!(store.read_note(&created.id).is_err());
@@ -2105,6 +2152,9 @@ mod tests {
 
         let notes = store.list_notes().expect("list notes after migration");
         assert_eq!(notes.len(), 2);
+        assert!(store
+            .surface_always_on_top("id-1")
+            .expect("legacy notes default to always on top"));
         let first = notes
             .iter()
             .find(|note| note.id == "id-1")

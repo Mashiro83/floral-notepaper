@@ -196,7 +196,9 @@
       "open": "開啟"
     },
     "tooltip": {
+      "allowWindowCover": "允許其他視窗覆蓋",
       "close": "關閉",
+      "keepOnTop": "保持在所有視窗上方",
       "openInEditor": "在編輯器中開啟",
       "pinToTile": "轉為磁貼"
     }

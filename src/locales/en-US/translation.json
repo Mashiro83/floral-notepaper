@@ -196,7 +196,9 @@
       "open": "Open"
     },
     "tooltip": {
+      "allowWindowCover": "Allow other windows to cover",
       "close": "Close",
+      "keepOnTop": "Keep above other windows",
       "openInEditor": "Open in Editor",
       "pinToTile": "Pin to Tile"
     }

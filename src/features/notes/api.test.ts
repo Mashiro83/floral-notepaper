@@ -1,8 +1,28 @@
+import { invoke } from "@tauri-apps/api/core";
 import { i18n } from "../../locales";
-import { describe, expect, test } from "vitest";
-import { getErrorMessage } from "./api";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { getErrorMessage, setSurfaceAlwaysOnTop } from "./api";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
+}));
 
 describe("notes api error localization", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+  });
+
+  test("persists a note surface always-on-top preference through Rust", async () => {
+    vi.mocked(invoke).mockResolvedValue({ id: "note-1", surfaceAlwaysOnTop: false });
+
+    await setSurfaceAlwaysOnTop("note-1", false);
+
+    expect(invoke).toHaveBeenCalledWith("notes_set_surface_always_on_top", {
+      id: "note-1",
+      enabled: false,
+    });
+  });
+
   test("localizes structured backend errors with interpolation details", () => {
     expect(
       getErrorMessage({
